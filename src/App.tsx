@@ -221,24 +221,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user) {
-      const q = query(
-        collection(db, 'meetings'),
-        where('uid', '==', user.uid),
-        orderBy('date', 'desc')
-      );
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Meeting));
-        setMeetings(docs);
-        setIsInitialLoading(false);
-      }, (error) => {
-        console.error("Firestore Error: ", error);
-        setIsInitialLoading(false);
-      });
-      return unsubscribe;
-    } else {
+    const q = user 
+      ? query(collection(db, 'meetings'), where('uid', '==', user.uid), orderBy('date', 'desc'))
+      : query(collection(db, 'meetings'), orderBy('date', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Meeting));
+      setMeetings(docs);
       setIsInitialLoading(false);
-    }
+    }, (error) => {
+      console.error("Firestore Error: ", error);
+      setIsInitialLoading(false);
+    });
+    return unsubscribe;
   }, [user]);
 
   // Test connection
@@ -465,7 +460,7 @@ export default function App() {
           transcript: response.text, // In a real app, we'd store the full transcript separately
           date: serverTimestamp(),
           duration: duration,
-          uid: user?.uid
+          uid: user?.uid || 'guest_user'
         });
 
         setIsProcessing(false);
@@ -743,31 +738,6 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
 
   if (!isAuthReady) return <div className="h-screen flex items-center justify-center bg-[#050505]"><Loader2 className="animate-spin text-[#F27D26]" /></div>;
 
-  if (!user) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-[#050505] p-6 text-center">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-md"
-        >
-          <div className="w-20 h-20 bg-[#F27D26] rounded-3xl flex items-center justify-center mb-8 mx-auto shadow-[0_0_40px_rgba(242,125,38,0.3)]">
-            <Mic className="text-white w-10 h-10" />
-          </div>
-          <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">Digital Graphity</h1>
-          <p className="text-zinc-400 mb-10 text-lg">Securely record, transcribe, and summarize your meetings with professional-grade AI.</p>
-          <button 
-            onClick={signIn}
-            className="w-full py-4 bg-white text-black font-semibold rounded-2xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-3"
-          >
-            <User className="w-5 h-5" />
-            Continue with Google
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col md:flex-row font-sans relative overflow-hidden">
       {/* Background Glows */}
@@ -821,19 +791,29 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
 
         <div className="pt-6 border-t border-zinc-800">
           <div className="flex items-center gap-3 mb-4 px-2">
-            <img src={user.photoURL || ''} className="w-8 h-8 rounded-full" alt="" />
+            <img src={user?.photoURL || 'https://picsum.photos/seed/guest/200/200'} className="w-8 h-8 rounded-full" alt="" />
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate">{user.displayName}</p>
-              <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+              <p className="text-sm font-medium truncate">{user?.displayName || 'Guest User'}</p>
+              <p className="text-xs text-zinc-500 truncate">{user?.email || 'Public Mode'}</p>
             </div>
           </div>
-          <button 
-            onClick={logOut}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            Sign Out
-          </button>
+          {user ? (
+            <button 
+              onClick={logOut}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+              Sign Out
+            </button>
+          ) : (
+            <button 
+              onClick={signIn}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#F27D26] hover:bg-[#F27D26]/10 transition-colors"
+            >
+              <User className="w-5 h-5" />
+              Sign In
+            </button>
+          )}
         </div>
       </div>
 
@@ -978,19 +958,29 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
 
                 <div className="pt-6 border-t border-zinc-800">
                   <div className="flex items-center gap-3 mb-4 px-2">
-                    <img src={user.photoURL || ''} className="w-8 h-8 rounded-full" alt="" />
+                    <img src={user?.photoURL || 'https://picsum.photos/seed/guest/200/200'} className="w-8 h-8 rounded-full" alt="" />
                     <div className="flex-1 overflow-hidden">
-                      <p className="text-sm font-medium truncate">{user.displayName}</p>
-                      <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                      <p className="text-sm font-medium truncate">{user?.displayName || 'Guest User'}</p>
+                      <p className="text-xs text-zinc-500 truncate">{user?.email || 'Public Mode'}</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={logOut}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    <LogOut className="w-5 h-5" />
-                    Sign Out
-                  </button>
+                  {user ? (
+                    <button 
+                      onClick={logOut}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      Sign Out
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={signIn}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#F27D26] hover:bg-[#F27D26]/10 transition-colors"
+                    >
+                      <User className="w-5 h-5" />
+                      Sign In
+                    </button>
+                  )}
                 </div>
               </motion.div>
             </>

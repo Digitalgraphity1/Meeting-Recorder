@@ -41,16 +41,14 @@ service cloud.firestore {
              data.actionItems is list &&
              data.nextSteps is list &&
              data.folder in ['Work', 'School', 'Personal', 'General'] &&
-             data.duration is number &&
-             data.uid == request.auth.uid;
+             data.duration is number;
     }
 
     match /meetings/{meetingId} {
-      allow read: if isDocOwner();
-      allow create: if isAuthenticated() && isValidMeeting(request.resource.data);
-      allow update: if isDocOwner() && isValidMeeting(request.resource.data) && 
-                      request.resource.data.uid == resource.data.uid;
-      allow delete: if isDocOwner();
+      allow read: if true;
+      allow create: if isValidMeeting(request.resource.data);
+      allow update: if isValidMeeting(request.resource.data);
+      allow delete: if true;
     }
 
     match /test/connection {

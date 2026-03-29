@@ -57,6 +57,8 @@ import { cn } from './lib/utils';
 
 // --- Types ---
 
+type Language = 'English' | 'Gujarati' | 'Hindi';
+
 interface Meeting {
   id: string;
   title: string;
@@ -160,6 +162,8 @@ export default function App() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isNewMeetingModalOpen, setIsNewMeetingModalOpen] = useState(false);
   const [newMeetingName, setNewMeetingName] = useState('');
+  const [translatingId, setTranslatingId] = useState<string | null>(null);
+  const [meetingLanguages, setMeetingLanguages] = useState<Record<string, Language>>({});
 
   const folderCounts = useMemo(() => {
     return {
@@ -473,6 +477,75 @@ export default function App() {
 
   // --- Helpers ---
 
+  const getDisplayContent = (meeting: Meeting) => {
+    const currentLang = meetingLanguages[meeting.id] || 'English';
+    if (currentLang === 'English' || !meeting.translations?.[currentLang]) {
+      return meeting;
+    }
+    return {
+      ...meeting,
+      ...meeting.translations[currentLang]
+    };
+  };
+
+  const translateMeeting = async (meeting: Meeting, targetLang: Language) => {
+    if (targetLang === 'English') {
+      setMeetingLanguages(prev => ({ ...prev, [meeting.id]: 'English' }));
+      return;
+    }
+
+    if (meeting.translations?.[targetLang]) {
+      setMeetingLanguages(prev => ({ ...prev, [meeting.id]: targetLang }));
+      return;
+    }
+
+    setTranslatingId(meeting.id);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            text: `Translate the following meeting summary into ${targetLang}.
+            Title: ${meeting.title}
+            Summary: ${meeting.summary}
+            Key Points: ${meeting.keyPoints.join(', ')}
+            Action Items: ${meeting.actionItems.join(', ')}
+            Next Steps: ${meeting.nextSteps.join(', ')}
+            
+            Return the translation in JSON format with fields: title, summary, keyPoints (array), actionItems (array), nextSteps (array).
+            Return ONLY the JSON object.`
+          }
+        ],
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+
+      const translation = JSON.parse(response.text);
+      
+      // Update local state first for immediate feedback
+      setMeetingLanguages(prev => ({ ...prev, [meeting.id]: targetLang }));
+      
+      // Persist to Firestore
+      const meetingRef = doc(db, 'meetings', meeting.id);
+      const updatedTranslations = {
+        ...(meeting.translations || {}),
+        [targetLang]: translation
+      };
+      
+      // We don't await this to keep the UI snappy
+      import('firebase/firestore').then(({ updateDoc }) => {
+        updateDoc(meetingRef, { translations: updatedTranslations });
+      });
+
+    } catch (err) {
+      console.error("Translation failed:", err);
+    } finally {
+      setTranslatingId(null);
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -579,7 +652,7 @@ ${meeting.transcript}
   };
 
   const shareToWhatsApp = (meeting: Meeting) => {
-    const display = meeting;
+    const display = getDisplayContent(meeting);
     const lang = meeting.language || 'English';
     
     let message = `*Meeting Summary: ${display.title}*\n\n`;
@@ -650,7 +723,7 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
   };
 
   const generatePDF = async (meeting: Meeting, shouldShare: boolean = false) => {
-    const display = meeting;
+    const display = getDisplayContent(meeting);
     const dateStr = meeting.date ? format(meeting.date.toDate(), 'MMMM d, yyyy h:mm a') : 'Recent';
 
     // Create a temporary container for the PDF content
@@ -1058,6 +1131,9 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
               </div>
             ) : (
               filteredMeetings.map((meeting, index) => {
+                const display = getDisplayContent(meeting);
+                const currentLang = meetingLanguages[meeting.id] || 'English';
+                
                 return (
                   <motion.div
                     key={meeting.id}
@@ -1077,11 +1153,11 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
                       </div>
                       
                       <h3 className="text-xl font-bold mb-3 line-clamp-2 group-hover:text-white transition-colors">
-                        {meeting.title}
+                        {display.title}
                       </h3>
                       
                       <p className="text-zinc-500 text-sm line-clamp-3 mb-6 flex-1 leading-relaxed">
-                        {meeting.summary}
+                        {display.summary}
                       </p>
                       
                       <div className="flex items-center gap-4 text-xs text-zinc-500 font-medium mb-2">
@@ -1100,6 +1176,30 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
                         </div>
                       )}
                     </div>
+
+                    {/* Language Buttons */}
+                    <div className="flex items-center gap-2 pt-4 border-t border-zinc-800/50">
+                      {['English', 'Gujarati', 'Hindi'].map((lang) => (
+                        <button
+                          key={lang}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            translateMeeting(meeting, lang as Language);
+                          }}
+                          disabled={translatingId === meeting.id}
+                          className={cn(
+                            "flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+                            currentLang === lang 
+                              ? "bg-[#F27D26] text-white shadow-[0_0_10px_rgba(242,125,38,0.3)]" 
+                              : "bg-zinc-800/50 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300"
+                          )}
+                        >
+                          {translatingId === meeting.id && currentLang !== lang ? (
+                            <Loader2 className="w-3 h-3 animate-spin mx-auto" />
+                          ) : lang.slice(0, 3)}
+                        </button>
+                      ))}
+                    </div>
                   </motion.div>
                 );
               })
@@ -1111,7 +1211,7 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
       {/* Meeting Detail Modal */}
       <AnimatePresence>
         {selectedMeeting && (() => {
-          const display = selectedMeeting;
+          const display = getDisplayContent(selectedMeeting);
           return (
             <motion.div 
               initial={{ opacity: 0 }}
@@ -1317,7 +1417,7 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
                 <div className="prose prose-invert max-w-none">
                   <div className="bg-zinc-900/30 rounded-[32px] p-8 border border-zinc-800/50 shadow-inner">
                     <p className="text-zinc-300 leading-relaxed text-lg whitespace-pre-wrap font-mono">
-                      {selectedMeeting.transcript}
+                      {getDisplayContent(selectedMeeting).transcript}
                     </p>
                   </div>
                 </div>

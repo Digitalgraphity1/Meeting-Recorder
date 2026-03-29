@@ -796,11 +796,23 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
     };
 
     try {
-      await html2pdf().from(element).set(opt).save();
-      
       if (shouldShare) {
-        const message = `Thank you Sir for this meeting this is our Meets Of Meeting please check.\n\n*Thanks*\n*Digital Graphity*`;
-        window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+        // Try to share via Web Share API (works on mobile)
+        const pdfBlob = await html2pdf().from(element).set(opt).output('blob');
+        const file = new File([pdfBlob], opt.filename, { type: 'application/pdf' });
+        
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: display.title,
+            text: `Thank you Sir for this meeting this is our Meets Of Meeting please check.\n\n*Thanks*\n*Digital Graphity*`
+          });
+        } else {
+          // Fallback for desktop: share the text summary directly via WhatsApp Web
+          shareToWhatsApp(meeting);
+        }
+      } else {
+        await html2pdf().from(element).set(opt).save();
       }
     } catch (err) {
       console.error("PDF generation failed:", err);
@@ -1321,11 +1333,13 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
                         <List className="w-6 h-6 text-[#F27D26]" />
                         Key Discussion Points
                       </h3>
-                      <ul className="space-y-3">
+                      <ul className="space-y-4">
                         {display.keyPoints?.map((point: string, i: number) => (
-                          <li key={i} className="flex items-start gap-3 text-zinc-400">
-                            <div className="w-2 h-2 bg-[#F27D26] rounded-full mt-2" />
-                            {point}
+                          <li key={i} className="flex items-start gap-4 p-4 bg-zinc-900/40 rounded-2xl border border-zinc-800/50 hover:bg-zinc-800/40 transition-colors">
+                            <div className="w-8 h-8 rounded-full bg-[#F27D26]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <span className="text-[#F27D26] font-bold text-sm">{i + 1}</span>
+                            </div>
+                            <span className="text-zinc-300 leading-relaxed">{point}</span>
                           </li>
                         ))}
                       </ul>
@@ -1340,9 +1354,11 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
                       </h3>
                       <ul className="space-y-4">
                         {display.actionItems?.map((item: string, i: number) => (
-                          <li key={i} className="flex items-center gap-3 p-3 bg-zinc-900 rounded-2xl border border-zinc-800">
-                            <div className="w-6 h-6 border-2 border-zinc-700 rounded-lg flex-shrink-0" />
-                            <span className="text-sm text-zinc-300">{item}</span>
+                          <li key={i} className="group flex items-start gap-4 p-4 bg-zinc-900/60 rounded-2xl border border-zinc-800 hover:border-[#F27D26]/30 transition-all cursor-pointer">
+                            <div className="w-6 h-6 border-2 border-zinc-600 group-hover:border-[#F27D26] rounded-lg flex-shrink-0 mt-0.5 transition-colors flex items-center justify-center">
+                              <CheckSquare className="w-4 h-4 text-transparent group-hover:text-[#F27D26] transition-colors" />
+                            </div>
+                            <span className="text-sm text-zinc-300 leading-relaxed">{item}</span>
                           </li>
                         ))}
                       </ul>
@@ -1355,9 +1371,11 @@ ${meeting.nextSteps.map(s => `- ${s}`).join('\n')}
                       </h3>
                       <ul className="space-y-4">
                         {display.nextSteps?.map((step: string, i: number) => (
-                          <li key={i} className="flex items-center gap-3 text-sm text-zinc-400">
-                            <Clock className="w-4 h-4 text-zinc-600" />
-                            {step}
+                          <li key={i} className="flex items-start gap-4 p-4 bg-zinc-900/40 rounded-2xl border border-zinc-800/50 hover:bg-zinc-800/40 transition-colors">
+                            <div className="p-2 bg-blue-500/10 rounded-xl flex-shrink-0 mt-0.5">
+                              <Clock className="w-4 h-4 text-blue-400" />
+                            </div>
+                            <span className="text-sm text-zinc-300 leading-relaxed">{step}</span>
                           </li>
                         ))}
                       </ul>

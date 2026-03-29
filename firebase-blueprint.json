@@ -1,0 +1,28 @@
+{
+  "entities": {
+    "Meeting": {
+      "title": "Meeting Record",
+      "description": "A recorded meeting with transcript and AI-generated insights.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Auto-generated title for the meeting." },
+        "date": { "type": "string", "format": "date-time", "description": "When the meeting took place." },
+        "duration": { "type": "number", "description": "Duration in seconds." },
+        "transcript": { "type": "string", "description": "Full text transcript of the meeting." },
+        "summary": { "type": "string", "description": "3-sentence executive summary." },
+        "actionItems": { "type": "array", "items": { "type": "string" }, "description": "List of tasks assigned." },
+        "keyPoints": { "type": "array", "items": { "type": "string" }, "description": "Main topics discussed." },
+        "nextSteps": { "type": "array", "items": { "type": "string" }, "description": "Upcoming deadlines or meetings." },
+        "folder": { "type": "string", "enum": ["Work", "School", "Personal", "General"], "description": "Category for organization." },
+        "uid": { "type": "string", "description": "Owner of the recording." }
+      },
+      "required": ["title", "date", "uid"]
+    }
+  },
+  "firestore": {
+    "/meetings/{meetingId}": {
+      "schema": "Meeting",
+      "description": "Collection of all meetings."
+    }
+  }
+}

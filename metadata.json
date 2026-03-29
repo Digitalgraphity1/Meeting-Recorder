@@ -1,0 +1,7 @@
+{
+  "name": "Digital Graphity",
+  "description": "A professional meeting recorder and AI summarizer. Capture physical meetings, generate executive summaries, action items, and searchable transcripts with speaker identification.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

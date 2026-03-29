@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: meetings
+    // Fields:
+    //   - title: string (required)
+    //   - summary: string (required)
+    //   - transcript: string (required)
+    //   - keyPoints: list (required)
+    //   - actionItems: list (required)
+    //   - nextSteps: list (required)
+    //   - folder: string (required)
+    //   - duration: number (required)
+    //   - date: timestamp (required)
+    //   - uid: string (required, immutable)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function isValidMeeting(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.summary is string && data.summary.size() < 2000 &&
+             data.transcript is string &&
+             data.keyPoints is list &&
+             data.actionItems is list &&
+             data.nextSteps is list &&
+             data.folder in ['Work', 'School', 'Personal', 'General'] &&
+             data.duration is number &&
+             data.uid == request.auth.uid;
+    }
+
+    match /meetings/{meetingId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidMeeting(request.resource.data);
+      allow update: if isDocOwner() && isValidMeeting(request.resource.data) && 
+                      request.resource.data.uid == resource.data.uid;
+      allow delete: if isDocOwner();
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
